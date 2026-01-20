@@ -7,8 +7,8 @@ const app = express();
 const CSV_FILE = "./tasks.csv";
 
 /* ================== BASIC AUTH (PERSONAL USE) ================== */
-const USER = "admin";
-const PASS = "1234";
+const USER = process.env.APP_USER;
+const PASS = process.env.APP_PASS;
 
 app.use((req, res, next) => {
     const auth = req.headers.authorization;
@@ -121,3 +121,4 @@ app.delete("/task/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Server running"));
+
