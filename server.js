@@ -20,15 +20,20 @@ const GIT_BRANCH = process.env.GIT_BRANCH || "main";
 
 const GIT_REMOTE = `https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/${GIT_USERNAME}/${GIT_REPO}.git`;
 
+if (!process.env.GIT_TOKEN) {
+    throw new Error("GIT_TOKEN missing — data persistence disabled");
+}
 
 async function pushCSVToGitHub() {
     try {
         await git.add("tasks.csv");
         await git.commit("Update tasks.csv");
         await git.push(GIT_REMOTE, GIT_BRANCH);
-        console.log("✅ CSV pushed to GitHub");
+        console.log("✅ tasks.csv pushed to GitHub");
     } catch (err) {
-        console.error("❌ GitHub push failed:", err.message);
+        console.error("❌ GitHub push FAILED");
+        console.error(err);
+        throw err; // 🔥 DO NOT SILENTLY CONTINUE
     }
 }
 
@@ -145,5 +150,6 @@ app.delete("/task/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Server running"));
+
 
 
