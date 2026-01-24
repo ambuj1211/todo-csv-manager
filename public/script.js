@@ -26,6 +26,23 @@ async function openNotes(taskId) {
   quill.root.innerHTML = task.notes || "";
   document.getElementById("notesModal").style.display = "block";
 }
+async function saveNotes() {
+  const notesHTML = quill.root.innerHTML;
+
+  await fetch("/task", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      task_id: currentNotesTaskId,
+      notes: notesHTML
+    })
+  });
+
+  closeNotes();
+}
+function closeNotes() {
+  document.getElementById("notesModal").style.display = "none";
+}
 
 async function loadTasks() {
     const res = await fetch("/tasks");
@@ -150,6 +167,7 @@ async function removeTask(id) {
 }
 
 loadTasks();
+
 
 
 
