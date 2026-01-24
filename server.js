@@ -1,42 +1,12 @@
 const express = require("express");
-const fs = require("fs");
-const csv = require("csv-parser");
 const bodyParser = require("body-parser");
-const simpleGit = require("simple-git");
+const { google } = require("googleapis");
 
 const app = express();
-const CSV_FILE = "./tasks.csv";
 
-/* ================== BASIC AUTH (PERSONAL USE) ================== */
+/* ================== BASIC AUTH ================== */
 const USER = process.env.APP_USER;
 const PASS = process.env.APP_PASS;
-
-const git = simpleGit();
-
-const GIT_USERNAME = process.env.GIT_USERNAME;
-const GIT_TOKEN = process.env.GIT_TOKEN;
-const GIT_REPO = process.env.GIT_REPO;
-const GIT_BRANCH = process.env.GIT_BRANCH || "main";
-
-const GIT_REMOTE = `https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/${GIT_USERNAME}/${GIT_REPO}.git`;
-
-if (!process.env.GIT_TOKEN) {
-    throw new Error("GIT_TOKEN missing — data persistence disabled");
-}
-
-async function pushCSVToGitHub() {
-    try {
-        await git.add("tasks.csv");
-        await git.commit("Update tasks.csv");
-        await git.push(GIT_REMOTE, GIT_BRANCH);
-        console.log("✅ tasks.csv pushed to GitHub");
-    } catch (err) {
-        console.error("❌ GitHub push FAILED");
-        console.error(err);
-        throw err; // 🔥 DO NOT SILENTLY CONTINUE
-    }
-}
-
 
 app.use((req, res, next) => {
     const auth = req.headers.authorization;
@@ -50,50 +20,30 @@ app.use((req, res, next) => {
         .toString()
         .split(":");
 
-    if (user === USER && pass === PASS) {
-        next();
-    } else {
+    if (user === USER && pass === PASS) next();
+    else {
         res.setHeader("WWW-Authenticate", "Basic");
         res.status(401).end();
     }
 });
-/* =============================================================== */
+/* ================================================ */
 
 app.use(bodyParser.json());
 app.use(express.static("public"));
 
-/* ================== CSV HELPERS ================== */
-function readCSV() {
-    return new Promise(resolve => {
-        const data = [];
-        fs.createReadStream(CSV_FILE)
-            .pipe(csv())
-            .on("data", row => {
-                Object.keys(row).forEach(k => row[k] = row[k].trim());
-                data.push(row);
-            })
-            .on("end", () => resolve(data));
-    });
-}
+/* ================== GOOGLE SHEETS ================== */
+const auth = new google.auth.JWT(
+    process.env.GOOGLE_CLIENT_EMAIL,
+    null,
+    process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    ["https://www.googleapis.com/auth/spreadsheets"]
+);
 
-function writeCSV(data) {
-    if (fs.existsSync(CSV_FILE)) {
-        fs.copyFileSync(CSV_FILE, CSV_FILE + ".bak");
-    }
+const sheets = google.sheets({ version: "v4", auth });
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const RANGE = "A2:I"; // data rows
 
-    const header =
-        "task_id,start_date,task_name,priority,status,due_date,days_left,progress\n";
-
-    const rows = data.map(t =>
-        `${t.task_id},${t.start_date},${t.task_name},${t.priority},${t.status},${t.due_date},${t.days_left},${t.progress}`
-    ).join("\n");
-
-    const temp = CSV_FILE + ".tmp";
-    fs.writeFileSync(temp, header + rows);
-    fs.renameSync(temp, CSV_FILE);
-    pushCSVToGitHub();   // 🔥 THIS IS THE MAGIC
-}
-
+/* ================== HELPERS ================== */
 function calculateDaysLeft(dueDate) {
     const today = new Date();
     const due = new Date(dueDate);
@@ -105,51 +55,129 @@ function calculateProgress(status) {
     if (status === "In Progress") return 50;
     return 0;
 }
-/* ================================================= */
+
+/* ================== READ TASKS ================== */
+async function readTasks() {
+    const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: RANGE,
+    });
+
+    const rows = res.data.values || [];
+
+    return rows.map(r => ({
+        task_id: r[0],
+        start_date: r[1],
+        task_name: r[2],
+        priority: r[3],
+        status: r[4],
+        due_date: r[5],
+        days_left: r[6],
+        progress: r[7],
+        notes: r[8] || ""
+    }));
+}
 
 /* ================== ROUTES ================== */
+
+/* GET ALL TASKS */
 app.get("/tasks", async (req, res) => {
-    res.json(await readCSV());
+    const tasks = await readTasks();
+    res.json(tasks);
 });
 
+/* ADD / UPDATE TASK */
 app.post("/task", async (req, res) => {
-    let tasks = await readCSV();
-    let task = req.body;
+    const tasks = await readTasks();
+    const task = req.body;
 
     task.status = task.status || "Not Started";
     task.days_left = calculateDaysLeft(task.due_date);
     task.progress = calculateProgress(task.status);
+    task.notes = task.notes || "";
 
-    if (task.task_id !== null && task.task_id !== undefined) {
-        const idx = tasks.findIndex(t =>
-            String(t.task_id) === String(task.task_id)
-        );
-        if (idx !== -1) tasks[idx] = task;
+    if (task.task_id) {
+        // UPDATE EXISTING
+        const index = tasks.findIndex(t => String(t.task_id) === String(task.task_id));
+        if (index === -1) return res.sendStatus(404);
+
+        const rowNumber = index + 2; // sheet row (header offset)
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SHEET_ID,
+            range: `A${rowNumber}:I${rowNumber}`,
+            valueInputOption: "RAW",
+            requestBody: {
+                values: [[
+                    task.task_id,
+                    task.start_date,
+                    task.task_name,
+                    task.priority,
+                    task.status,
+                    task.due_date,
+                    task.days_left,
+                    task.progress,
+                    task.notes
+                ]]
+            }
+        });
     } else {
-        task.task_id = tasks.length
+        // ADD NEW
+        const newId = tasks.length
             ? Math.max(...tasks.map(t => Number(t.task_id))) + 1
             : 1;
-        tasks.push(task);
+
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: SHEET_ID,
+            range: RANGE,
+            valueInputOption: "RAW",
+            requestBody: {
+                values: [[
+                    newId,
+                    task.start_date,
+                    task.task_name,
+                    task.priority,
+                    task.status,
+                    task.due_date,
+                    task.days_left,
+                    task.progress,
+                    task.notes
+                ]]
+            }
+        });
     }
 
-    writeCSV(tasks);
     res.sendStatus(200);
 });
 
+/* DELETE TASK */
 app.delete("/task/:id", async (req, res) => {
-    const id = String(req.params.id).trim();
-    let tasks = await readCSV();
+    const id = String(req.params.id);
+    const tasks = await readTasks();
+    const index = tasks.findIndex(t => String(t.task_id) === id);
+    if (index === -1) return res.sendStatus(404);
 
-    tasks = tasks.filter(t => String(t.task_id).trim() !== id);
-    tasks.forEach((t, i) => t.task_id = i + 1);
+    const rowNumber = index + 2;
 
-    writeCSV(tasks);
+    await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: {
+            requests: [{
+                deleteDimension: {
+                    range: {
+                        sheetId: 0,
+                        dimension: "ROWS",
+                        startIndex: rowNumber - 1,
+                        endIndex: rowNumber
+                    }
+                }
+            }]
+        }
+    });
+
     res.sendStatus(200);
 });
 /* ============================================ */
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("🚀 Server running"));
-
-
-
+app.listen(PORT, () => console.log("🚀 Server running (Google Sheets backend)"));
