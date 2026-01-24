@@ -129,28 +129,31 @@ app.post("/task", async (req, res) => {
         });
     } else {
         // ADD NEW
-        const newId = tasks.length
-            ? Math.max(...tasks.map(t => Number(t.task_id))) + 1
-            : 1;
+        // ADD NEW TASK
+const newId = tasks.length
+    ? Math.max(...tasks.map(t => t.task_id)) + 1
+    : 1;
 
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: SHEET_ID,
-            range: RANGE,
-            valueInputOption: "RAW",
-            requestBody: {
-                values: [[
-                    newId,
-                    task.start_date,
-                    task.task_name,
-                    task.priority,
-                    task.status,
-                    task.due_date,
-                    task.days_left,
-                    task.progress,
-                    task.notes
-                ]]
-            }
-        });
+await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: "A:I",
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: {
+        values: [[
+            newId,
+            task.start_date,
+            task.task_name,
+            task.priority,
+            task.status,
+            task.due_date,
+            task.days_left,
+            task.progress,
+            task.notes
+        ]]
+    }
+});
+
     }
 
     res.sendStatus(200);
@@ -187,4 +190,5 @@ app.delete("/task/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Server running (Google Sheets backend)"));
+
 
