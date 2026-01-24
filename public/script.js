@@ -48,8 +48,10 @@ async function loadTasks() {
             <td>
                 <button onclick="edit(${t.task_id})">✏️</button>
                 <button onclick="save(${t.task_id})" id="save-${t.task_id}" style="display:none">💾</button>
+                <button onclick="openNotes(${t.task_id})">📝</button>
                 <button onclick="removeTask(${t.task_id})">🗑️</button>
             </td>
+
         </tr>`;
     });
 
@@ -119,5 +121,6 @@ async function removeTask(id) {
 }
 
 loadTasks();
+
 
 
