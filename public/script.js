@@ -1,3 +1,22 @@
+let quill;
+let currentNotesTaskId = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  quill = new Quill("#editor", {
+    theme: "snow",
+    modules: {
+      toolbar: [
+        ["bold", "italic", "underline"],
+        [{ size: [] }],
+        [{ color: [] }],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["clean"]
+      ]
+    }
+  });
+});
+
+
 async function loadTasks() {
     const res = await fetch("/tasks");
     const tasks = await res.json();
@@ -121,6 +140,7 @@ async function removeTask(id) {
 }
 
 loadTasks();
+
 
 
 
