@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const csv = require("csv-parser");
 const bodyParser = require("body-parser");
+const simpleGit = require("simple-git");
 
 const app = express();
 const CSV_FILE = "./tasks.csv";
@@ -9,6 +10,28 @@ const CSV_FILE = "./tasks.csv";
 /* ================== BASIC AUTH (PERSONAL USE) ================== */
 const USER = process.env.APP_USER;
 const PASS = process.env.APP_PASS;
+
+const git = simpleGit();
+
+const GIT_USERNAME = process.env.GIT_USERNAME;
+const GIT_TOKEN = process.env.GIT_TOKEN;
+const GIT_REPO = process.env.GIT_REPO;
+const GIT_BRANCH = process.env.GIT_BRANCH || "main";
+
+const GIT_REMOTE = `https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/${GIT_USERNAME}/${GIT_REPO}.git`;
+
+
+async function pushCSVToGitHub() {
+    try {
+        await git.add("tasks.csv");
+        await git.commit("Update tasks.csv");
+        await git.push(GIT_REMOTE, GIT_BRANCH);
+        console.log("✅ CSV pushed to GitHub");
+    } catch (err) {
+        console.error("❌ GitHub push failed:", err.message);
+    }
+}
+
 
 app.use((req, res, next) => {
     const auth = req.headers.authorization;
@@ -63,6 +86,7 @@ function writeCSV(data) {
     const temp = CSV_FILE + ".tmp";
     fs.writeFileSync(temp, header + rows);
     fs.renameSync(temp, CSV_FILE);
+    pushCSVToGitHub();   // 🔥 THIS IS THE MAGIC
 }
 
 function calculateDaysLeft(dueDate) {
@@ -121,4 +145,5 @@ app.delete("/task/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Server running"));
+
 
