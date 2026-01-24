@@ -19,7 +19,10 @@ async function loadTasks() {
         html += `
         <tr>
             <td>${t.task_id}</td>
-            <td>${t.start_date}</td>
+            <td>
+                <input type="date" id="start-${t.task_id}" value="${t.start_date}" disabled>
+            </td>
+
             <td><input id="name-${t.task_id}" value="${t.task_name}" disabled></td>
 
             <td>
@@ -116,3 +119,4 @@ async function removeTask(id) {
 }
 
 loadTasks();
+
