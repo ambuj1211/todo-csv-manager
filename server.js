@@ -60,20 +60,26 @@ function calculateProgress(status) {
 async function readTasks() {
     const res = await sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: RANGE,
+        range: "A:I", // 🔥 read full sheet
     });
 
     const rows = res.data.values || [];
 
-    return rows.map(r => ({
-        task_id: r[0],
-        start_date: r[1],
-        task_name: r[2],
-        priority: r[3],
-        status: r[4],
-        due_date: r[5],
-        days_left: r[6],
-        progress: r[7],
+    // Remove header row
+    rows.shift();
+
+    // Filter out completely empty rows
+    const cleanRows = rows.filter(r => r.length && r[0]);
+
+    return cleanRows.map(r => ({
+        task_id: Number(r[0]),
+        start_date: r[1] || "",
+        task_name: r[2] || "",
+        priority: r[3] || "",
+        status: r[4] || "",
+        due_date: r[5] || "",
+        days_left: Number(r[6]) || 0,
+        progress: Number(r[7]) || 0,
         notes: r[8] || ""
     }));
 }
@@ -181,3 +187,4 @@ app.delete("/task/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Server running (Google Sheets backend)"));
+
