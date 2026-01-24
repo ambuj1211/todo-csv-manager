@@ -69,7 +69,7 @@ async function save(id) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             task_id: id,
-            start_date: new Date().toISOString().slice(0,10),
+            start_date: document.getElementById(`start-${id}`).value,
             task_name: document.getElementById(`name-${id}`).value,
             priority: document.getElementById(`priority-${id}`).value,
             status: document.getElementById(`status-${id}`).value,
@@ -119,4 +119,5 @@ async function removeTask(id) {
 }
 
 loadTasks();
+
 
