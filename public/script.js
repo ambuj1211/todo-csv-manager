@@ -16,6 +16,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+async function openNotes(taskId) {
+  currentNotesTaskId = taskId;
+
+  const res = await fetch("/tasks");
+  const tasks = await res.json();
+  const task = tasks.find(t => t.task_id == taskId);
+
+  quill.root.innerHTML = task.notes || "";
+  document.getElementById("notesModal").style.display = "block";
+}
 
 async function loadTasks() {
     const res = await fetch("/tasks");
@@ -140,6 +150,7 @@ async function removeTask(id) {
 }
 
 loadTasks();
+
 
 
 
