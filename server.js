@@ -42,6 +42,23 @@ const auth = new google.auth.JWT(
     ]
 );
 
+app.get("/auth-test", async (req, res) => {
+    try {
+        const info = await auth.getAccessToken();
+        res.json({
+            success: true,
+            tokenReceived: !!info.token,
+            clientEmail: process.env.GOOGLE_CLIENT_EMAIL
+        });
+    } catch (err) {
+        console.error("AUTH TEST FAILED:", err);
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+});
+
 const sheets = google.sheets({ version: "v4", auth });
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const RANGE = "A2:I"; // data rows
@@ -193,6 +210,7 @@ app.delete("/task/:id", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("🚀 Server running (Google Sheets backend)"));
+
 
 
 
